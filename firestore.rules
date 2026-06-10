@@ -24,7 +24,7 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt', 'updatedAt']) 
-        && data.keys().size() <= 9
+        && data.keys().size() <= 10
         && data.uid is string && data.uid.size() <= 128
         && data.email is string && data.email.size() <= 256
         && data.displayName is string && data.displayName.size() <= 128
@@ -32,7 +32,8 @@ service cloud.firestore {
         && data.updatedAt is string
         && (!('lifestylePreference' in data) || data.lifestylePreference in ["Vegan", "Vegetarian", "Mixed", "Non-Veg"])
         && (!('country' in data) || (data.country is string && data.country.size() <= 128))
-        && (!('carbonScore' in data) || (data.carbonScore is number && data.carbonScore >= 0 && data.carbonScore <= 100));
+        && (!('carbonScore' in data) || (data.carbonScore is number && data.carbonScore >= 0 && data.carbonScore <= 100))
+        && (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 1024));
     }
 
     function isValidActivity(data) {
@@ -43,12 +44,13 @@ service cloud.firestore {
         && data.category in ["transportation", "electricity", "food", "shopping", "waste"]
         && data.emissionsKg is number && data.emissionsKg >= 0
         && data.date is string && data.date.size() <= 32
-        && data.createdAt is string;
+        && data.createdAt is string
+        && (!('details' in data) || data.details is map);
     }
 
     function isValidGoal(data) {
       return data.keys().hasAll(['id', 'userId', 'title', 'targetReduction', 'currentProgress', 'completed', 'createdAt', 'deadline'])
-        && data.keys().size() <= 9
+        && data.keys().size() <= 11
         && data.id is string && data.id.size() <= 128
         && data.userId is string && data.userId.size() <= 128
         && data.title is string && data.title.size() <= 256
@@ -56,7 +58,9 @@ service cloud.firestore {
         && data.currentProgress is number && data.currentProgress >= 0
         && data.completed is bool
         && data.createdAt is string
-        && data.deadline is string && data.deadline.size() <= 32;
+        && data.deadline is string && data.deadline.size() <= 32
+        && (!('period' in data) || data.period in ["weekly", "monthly", "yearly"])
+        && (!('category' in data) || (data.category is string && data.category.size() <= 128));
     }
 
     function isValidNotification(data) {
@@ -77,7 +81,9 @@ service cloud.firestore {
         && data.userId is string && data.userId.size() <= 128
         && data.title is string && data.title.size() <= 256
         && data.createdAt is string
-        && data.totalEmissions is number && data.totalEmissions >= 0;
+        && data.totalEmissions is number && data.totalEmissions >= 0
+        && (!('recommendations' in data) || data.recommendations is list)
+        && (!('trends' in data) || data.trends is string);
     }
 
     function isValidChat(data) {
@@ -97,7 +103,9 @@ service cloud.firestore {
         && data.userId is string && data.userId.size() <= 128
         && data.challengeId is string && data.challengeId.size() <= 128
         && data.status in ["joined", "completed"]
-        && data.joinedAt is string;
+        && data.joinedAt is string
+        && (!('progress' in data) || (data.progress is number && data.progress >= 0 && data.progress <= 100))
+        && (!('completedAt' in data) || data.completedAt is string);
     }
 
     function isValidChallenge(data) {

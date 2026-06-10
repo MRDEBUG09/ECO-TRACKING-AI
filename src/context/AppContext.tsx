@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   User, Activity, Goal, Challenge, UserChallenge, Notification, Report, ChatHistory, LeaderboardEntry 
 } from '../types';
-import { db, auth, googleProvider, isFirebasePlaceholder } from '../firebase';
+import { db, auth, googleProvider, isFirebasePlaceholder, handleFirestoreError, OperationType } from '../firebase';
 import { 
   collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, 
   query, where, orderBy, onSnapshot 
@@ -231,10 +231,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
-          const userSnap = await getDoc(userDocRef);
+          let userSnap;
+          try {
+            userSnap = await getDoc(userDocRef);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
+          }
 
           let profileData: User;
-          if (userSnap.exists()) {
+          if (userSnap && userSnap.exists()) {
             profileData = userSnap.data() as User;
           } else {
             profileData = {
@@ -247,7 +252,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             };
-            await setDoc(userDocRef, profileData);
+            try {
+              await setDoc(userDocRef, profileData);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.CREATE, `users/${firebaseUser.uid}`);
+            }
           }
           setUser(profileData);
 
@@ -257,6 +266,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const list: Activity[] = [];
             snapshot.forEach((d) => list.push(d.data() as Activity));
             setActivities(list);
+          }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, `users/${firebaseUser.uid}/activities`);
           });
 
           const goalsQuery = query(collection(db, 'users', firebaseUser.uid, 'goals'), orderBy('createdAt', 'desc'));
@@ -264,6 +275,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const list: Goal[] = [];
             snapshot.forEach((d) => list.push(d.data() as Goal));
             setGoals(list);
+          }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, `users/${firebaseUser.uid}/goals`);
           });
 
           const chalsQuery = query(collection(db, 'users', firebaseUser.uid, 'challenges'), orderBy('joinedAt', 'desc'));
@@ -271,6 +284,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const list: UserChallenge[] = [];
             snapshot.forEach((d) => list.push(d.data() as UserChallenge));
             setUserChallenges(list);
+          }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, `users/${firebaseUser.uid}/challenges`);
           });
 
           const notifsQuery = query(collection(db, 'users', firebaseUser.uid, 'notifications'), orderBy('createdAt', 'desc'));
@@ -278,6 +293,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const list: Notification[] = [];
             snapshot.forEach((d) => list.push(d.data() as Notification));
             setNotifications(list);
+          }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, `users/${firebaseUser.uid}/notifications`);
           });
 
           const reportsQuery = query(collection(db, 'users', firebaseUser.uid, 'reports'), orderBy('createdAt', 'desc'));
@@ -285,6 +302,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const list: Report[] = [];
             snapshot.forEach((d) => list.push(d.data() as Report));
             setReports(list);
+          }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, `users/${firebaseUser.uid}/reports`);
           });
 
           const chatsQuery = query(collection(db, 'users', firebaseUser.uid, 'chats'), orderBy('createdAt', 'asc'));
@@ -292,6 +311,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const list: ChatHistory[] = [];
             snapshot.forEach((d) => list.push(d.data() as ChatHistory));
             setChats(list);
+          }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, `users/${firebaseUser.uid}/chats`);
           });
 
           setLoading(false);
@@ -365,7 +386,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isFirebasePlaceholder) {
       localStorage.setItem('ecotrack_user', JSON.stringify(updated));
     } else {
-      await updateDoc(doc(db, 'users', user.uid), updates);
+      try {
+        await updateDoc(doc(db, 'users', user.uid), updates);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+      }
     }
   };
 
@@ -412,9 +437,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('ecotrack_notifications', JSON.stringify([earnedNotification, ...notifications]));
       }
     } else {
-      await setDoc(doc(db, 'users', user.uid, 'activities', newAct.id), newAct);
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'activities', newAct.id), newAct);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/activities/${newAct.id}`);
+      }
       if (earnedNotification) {
-        await setDoc(doc(db, 'users', user.uid, 'notifications', earnedNotification.id), earnedNotification);
+        try {
+          await setDoc(doc(db, 'users', user.uid, 'notifications', earnedNotification.id), earnedNotification);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/notifications/${earnedNotification.id}`);
+        }
       }
     }
 
@@ -473,7 +506,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isFirebasePlaceholder) {
       localStorage.setItem('ecotrack_goals', JSON.stringify(newGoals));
     } else {
-      await setDoc(doc(db, 'users', user.uid, 'goals', newGoal.id), newGoal);
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'goals', newGoal.id), newGoal);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/goals/${newGoal.id}`);
+      }
     }
   };
 
@@ -506,7 +543,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isFirebasePlaceholder) {
       localStorage.setItem('ecotrack_user_challenges', JSON.stringify(updatedUserChals));
     } else {
-      await setDoc(doc(db, 'users', user.uid, 'challenges', newRegistration.id), newRegistration);
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'challenges', newRegistration.id), newRegistration);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/challenges/${newRegistration.id}`);
+      }
     }
 
     // Add general notification
@@ -523,7 +564,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isFirebasePlaceholder) {
       localStorage.setItem('ecotrack_notifications', JSON.stringify([startChalNotif, ...notifications]));
     } else {
-      await setDoc(doc(db, 'users', user.uid, 'notifications', startChalNotif.id), startChalNotif);
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'notifications', startChalNotif.id), startChalNotif);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/notifications/${startChalNotif.id}`);
+      }
     }
   };
 
@@ -564,7 +609,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isFirebasePlaceholder) {
       localStorage.setItem('ecotrack_user_challenges', JSON.stringify(updatedUserChals));
     } else {
-      await setDoc(doc(db, 'users', user.uid, 'challenges', reg.id), updatedReg);
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'challenges', reg.id), updatedReg);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/challenges/${reg.id}`);
+      }
     }
 
     // Success notification
@@ -581,7 +630,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isFirebasePlaceholder) {
       localStorage.setItem('ecotrack_notifications', JSON.stringify([finishChalNotif, ...notifications]));
     } else {
-      await setDoc(doc(db, 'users', user.uid, 'notifications', finishChalNotif.id), finishChalNotif);
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'notifications', finishChalNotif.id), finishChalNotif);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/notifications/${finishChalNotif.id}`);
+      }
     }
   };
 
@@ -594,7 +647,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isFirebasePlaceholder) {
       localStorage.setItem('ecotrack_notifications', JSON.stringify(updatedNotifs));
     } else {
-      await updateDoc(doc(db, 'users', user.uid, 'notifications', id), { isRead: true });
+      try {
+        await updateDoc(doc(db, 'users', user.uid, 'notifications', id), { isRead: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/notifications/${id}`);
+      }
     }
   };
 
@@ -687,7 +744,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (isFirebasePlaceholder) {
           localStorage.setItem('ecotrack_reports', JSON.stringify(updatedReports));
         } else {
-          await setDoc(doc(db, 'users', user.uid, 'reports', newReport.id), newReport);
+          try {
+            await setDoc(doc(db, 'users', user.uid, 'reports', newReport.id), newReport);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/reports/${newReport.id}`);
+          }
         }
 
         return newReport;
@@ -715,7 +776,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isFirebasePlaceholder) {
       localStorage.setItem('ecotrack_chats', JSON.stringify(tempChats));
     } else {
-      await setDoc(doc(db, 'users', user.uid, 'chats', userMsg.id), userMsg);
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'chats', userMsg.id), userMsg);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/chats/${userMsg.id}`);
+      }
     }
 
     try {
@@ -745,7 +810,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (isFirebasePlaceholder) {
           localStorage.setItem('ecotrack_chats', JSON.stringify(finalChats));
         } else {
-          await setDoc(doc(db, 'users', user.uid, 'chats', modelMsg.id), modelMsg);
+          try {
+            await setDoc(doc(db, 'users', user.uid, 'chats', modelMsg.id), modelMsg);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/chats/${modelMsg.id}`);
+          }
         }
       }
     } catch (err) {
@@ -773,7 +842,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await deleteDoc(doc(db, 'users', user.uid));
       signOut(auth);
     } catch (err) {
-      console.error("Error deleting user profile document:", err);
+      handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}`);
     }
   };
 
