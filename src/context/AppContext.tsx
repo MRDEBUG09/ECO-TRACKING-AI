@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { 
   User, Activity, Goal, Challenge, UserChallenge, Notification, Report, ChatHistory, LeaderboardEntry 
 } from '../types';
@@ -327,6 +327,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
         } else {
           setUser(null);
+          setAiInsights(null);
+          hasFetchedInitialInsights.current = false;
           setActivities([]);
           setGoals([]);
           setUserChallenges([]);
@@ -341,12 +343,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Set-up Initial Insights Call
+  const hasFetchedInitialInsights = useRef(false);
+
+  // Set-up Initial Insights Call responsibly
   useEffect(() => {
-    if (user) {
-      requestInsights();
+    if (user && !hasFetchedInitialInsights.current) {
+      hasFetchedInitialInsights.current = true;
+      const cached = localStorage.getItem('ecotrack_insights');
+      if (cached) {
+        try {
+          setAiInsights(JSON.parse(cached));
+        } catch (e) {
+          console.error("Error parsing cached insights", e);
+          requestInsights();
+        }
+      } else {
+        requestInsights();
+      }
     }
-  }, [user, activities]);
+  }, [user]);
 
   // Auth Functions
   const loginWithGoogle = async () => {
@@ -370,6 +385,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = async () => {
+    setAiInsights(null);
+    hasFetchedInitialInsights.current = false;
+    localStorage.removeItem('ecotrack_insights');
     if (isFirebasePlaceholder) {
       setUser(null);
       localStorage.removeItem('ecotrack_user');
@@ -671,6 +689,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (response.ok) {
         const data = await response.json();
         setAiInsights(data);
+        localStorage.setItem('ecotrack_insights', JSON.stringify(data));
         if (data.carbonScore && data.carbonScore !== user.carbonScore) {
           updateProfile({ carbonScore: data.carbonScore });
         }
