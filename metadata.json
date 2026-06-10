@@ -1,0 +1,6 @@
+{
+  "name": "EcoTrack AI",
+  "description": "Measure. Understand. Reduce. Track your carbon footprint, receive AI personalization and insights, challenges, and analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

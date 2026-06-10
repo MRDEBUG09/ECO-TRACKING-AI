@@ -1,0 +1,216 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Deny by Default)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened global helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Standalone Data Validation Helpers ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt', 'updatedAt']) 
+        && data.keys().size() <= 9
+        && data.uid is string && data.uid.size() <= 128
+        && data.email is string && data.email.size() <= 256
+        && data.displayName is string && data.displayName.size() <= 128
+        && data.createdAt is string
+        && data.updatedAt is string
+        && (!('lifestylePreference' in data) || data.lifestylePreference in ["Vegan", "Vegetarian", "Mixed", "Non-Veg"])
+        && (!('country' in data) || (data.country is string && data.country.size() <= 128))
+        && (!('carbonScore' in data) || (data.carbonScore is number && data.carbonScore >= 0 && data.carbonScore <= 100));
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll(['id', 'userId', 'category', 'emissionsKg', 'date', 'createdAt'])
+        && data.keys().size() <= 7
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.category in ["transportation", "electricity", "food", "shopping", "waste"]
+        && data.emissionsKg is number && data.emissionsKg >= 0
+        && data.date is string && data.date.size() <= 32
+        && data.createdAt is string;
+    }
+
+    function isValidGoal(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'targetReduction', 'currentProgress', 'completed', 'createdAt', 'deadline'])
+        && data.keys().size() <= 9
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.title is string && data.title.size() <= 256
+        && data.targetReduction is number && data.targetReduction >= 0
+        && data.currentProgress is number && data.currentProgress >= 0
+        && data.completed is bool
+        && data.createdAt is string
+        && data.deadline is string && data.deadline.size() <= 32;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'message', 'isRead', 'createdAt'])
+        && data.keys().size() == 6
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.title is string && data.title.size() <= 256
+        && data.message is string && data.message.size() <= 1024
+        && data.isRead is bool
+        && data.createdAt is string;
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'createdAt', 'emissionsBreakdown', 'totalEmissions'])
+        && data.keys().size() <= 8
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.title is string && data.title.size() <= 256
+        && data.createdAt is string
+        && data.totalEmissions is number && data.totalEmissions >= 0;
+    }
+
+    function isValidChat(data) {
+      return data.keys().hasAll(['id', 'userId', 'role', 'message', 'createdAt'])
+        && data.keys().size() == 5
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.role in ["user", "model"]
+        && data.message is string && data.message.size() <= 8192
+        && data.createdAt is string;
+    }
+
+    function isValidUserChallenge(data) {
+      return data.keys().hasAll(['id', 'userId', 'challengeId', 'status', 'joinedAt'])
+        && data.keys().size() <= 7
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.challengeId is string && data.challengeId.size() <= 128
+        && data.status in ["joined", "completed"]
+        && data.joinedAt is string;
+    }
+
+    function isValidChallenge(data) {
+      return data.keys().hasAll(['id', 'title', 'description', 'points', 'duration', 'participantsCount', 'isActive', 'createdAt'])
+        && data.keys().size() == 8
+        && data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() <= 256
+        && data.description is string && data.description.size() <= 2048
+        && data.points is int && data.points >= 0
+        && data.duration is string && data.duration.size() <= 64
+        && data.participantsCount is int && data.participantsCount >= 0
+        && data.isActive is bool
+        && data.createdAt is string;
+    }
+
+    function isValidLeaderboard(data) {
+      return data.keys().hasAll(['userId', 'displayName', 'totalCarbonSaved', 'points', 'updatedAt'])
+        && data.keys().size() <= 6
+        && data.userId is string && data.userId.size() <= 128
+        && data.displayName is string && data.displayName.size() <= 128
+        && data.totalCarbonSaved is number && data.totalCarbonSaved >= 0
+        && data.points is int && data.points >= 0
+        && data.updatedAt is string;
+    }
+
+    // --- Profile Rules Block ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false; // Deny broad queries over entire user directories
+      
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'country', 'lifestylePreference', 'carbonScore', 'updatedAt']));
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // --- Subcollections within a user profile scope ---
+
+      match /activities/{activityId} {
+        allow get: if isOwner(userId) && isValidId(activityId);
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) && isValidId(activityId) && isValidActivity(request.resource.data);
+        allow update: if isOwner(userId) && isValidId(activityId) && isValidActivity(request.resource.data)
+          && request.resource.data.id == resource.data.id
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['category', 'emissionsKg', 'date', 'details']));
+        allow delete: if isOwner(userId) && isValidId(activityId);
+      }
+
+      match /goals/{goalId} {
+        allow get: if isOwner(userId) && isValidId(goalId);
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) && isValidId(goalId) && isValidGoal(request.resource.data);
+        allow update: if isOwner(userId) && isValidId(goalId) && isValidGoal(request.resource.data)
+          && request.resource.data.id == resource.data.id
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'targetReduction', 'currentProgress', 'completed', 'deadline']));
+        allow delete: if isOwner(userId) && isValidId(goalId);
+      }
+
+      match /notifications/{notificationId} {
+        allow get: if isOwner(userId) && isValidId(notificationId);
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) && isValidId(notificationId) && isValidNotification(request.resource.data);
+        allow update: if isOwner(userId) && isValidId(notificationId) && isValidNotification(request.resource.data)
+          && request.resource.data.id == resource.data.id
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']));
+        allow delete: if isOwner(userId) && isValidId(notificationId);
+      }
+
+      match /reports/{reportId} {
+        allow get: if isOwner(userId) && isValidId(reportId);
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) && isValidId(reportId) && isValidReport(request.resource.data);
+        allow update: if false; // Generated audit logs are unalterable 
+        allow delete: if isOwner(userId) && isValidId(reportId);
+      }
+
+      match /chats/{chatId} {
+        allow get: if isOwner(userId) && isValidId(chatId);
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) && isValidId(chatId) && isValidChat(request.resource.data);
+        allow update, delete: if false; // Historical coach interactions cannot be modified
+      }
+
+      match /challenges/{userChallengeId} {
+        allow get: if isOwner(userId) && isValidId(userChallengeId);
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) && isValidId(userChallengeId) && isValidUserChallenge(request.resource.data);
+        allow update: if isOwner(userId) && isValidId(userChallengeId) && isValidUserChallenge(request.resource.data)
+          && request.resource.data.id == resource.data.id
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'progress', 'completedAt']));
+        allow delete: if isOwner(userId) && isValidId(userChallengeId);
+      }
+    }
+
+    // --- Global challenges collection ---
+    match /challenges/{challengeId} {
+      allow get: if isSignedIn() && isValidId(challengeId);
+      allow list: if isSignedIn();
+      allow write: if false; // Challenge definitions are administrative only
+    }
+
+    // --- Public general leaderboard entries ---
+    match /leaderboard/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn();
+      allow create, update: if isOwner(userId) && isValidId(userId) && isValidLeaderboard(request.resource.data);
+      allow delete: if isOwner(userId) && isValidId(userId);
+    }
+  }
+}

@@ -1,0 +1,180 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with their settings and carbon score.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "country": { "type": "string" },
+        "lifestylePreference": { "type": "string", "enum": ["Vegan", "Vegetarian", "Mixed", "Non-Veg"] },
+        "carbonScore": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "createdAt"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "An logged emission tracking activity.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "category": { "type": "string", "enum": ["transportation", "electricity", "food", "shopping", "waste"] },
+        "emissionsKg": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "details": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "category", "emissionsKg", "date", "createdAt"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "A user-defined sustainability reduction goal.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "targetReduction": { "type": "number" },
+        "currentProgress": { "type": "number" },
+        "period": { "type": "string", "enum": ["weekly", "monthly", "yearly"] },
+        "category": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "deadline": { "type": "string", "format": "date" }
+      },
+      "required": ["id", "userId", "title", "targetReduction", "currentProgress", "completed", "createdAt", "deadline"]
+    },
+    "Challenge": {
+      "title": "Challenge",
+      "description": "A community challenge to participate in.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "points": { "type": "integer" },
+        "duration": { "type": "string" },
+        "participantsCount": { "type": "integer" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "description", "points", "duration", "participantsCount", "isActive", "createdAt"]
+    },
+    "UserChallenge": {
+      "title": "UserChallenge",
+      "description": "User registration or progress in a challenge.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "challengeId": { "type": "string" },
+        "status": { "type": "string", "enum": ["joined", "completed"] },
+        "progress": { "type": "number" },
+        "joinedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "challengeId", "status", "joinedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "An in-app notification for the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "message", "isRead", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "A generated historical carbon emissions and lifestyle audit report.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "emissionsBreakdown": { "type": "object" },
+        "totalEmissions": { "type": "number" },
+        "recommendations": { "type": "array", "items": { "type": "string" } },
+        "trends": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "createdAt", "emissionsBreakdown", "totalEmissions"]
+    },
+    "ChatHistory": {
+      "title": "ChatHistory",
+      "description": "Saves messages exchanged with the AI Carbon Coach.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "role", "message", "createdAt"]
+    },
+    "Leaderboard": {
+      "title": "Leaderboard",
+      "description": "Leaderboard entries of standard users showcasing their positive climate deeds.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "totalCarbonSaved": { "type": "number" },
+        "points": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "totalCarbonSaved", "points", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Core profile document for each user containing carbon score and preferences."
+    },
+    "/users/{userId}/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Emissions activities logged by the user (transportation, electricity, etc)."
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": "Goal",
+      "description": "Custom sustainability commitments with progress bars."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "In-app automated messages such as goal achievements or high emission warnings."
+    },
+    "/users/{userId}/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Audited carbon savings reports ready for PDF or direct view."
+    },
+    "/users/{userId}/chats/{chatId}": {
+      "schema": "ChatHistory",
+      "description": "Saved thread messages for AI Carbon Coach to maintain personal context."
+    },
+    "/users/{userId}/challenges/{userChallengeId}": {
+      "schema": "UserChallenge",
+      "description": "The specific user's registrations and completions of environmental challenges."
+    },
+    "/challenges/{challengeId}": {
+      "schema": "Challenge",
+      "description": "Global challenges for the sustainable community."
+    },
+    "/leaderboard/{userId}": {
+      "schema": "Leaderboard",
+      "description": "Public general leaderboard documenting carbon-saving points."
+    }
+  }
+}
